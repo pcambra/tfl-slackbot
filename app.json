@@ -6,6 +6,12 @@
     "env": {
         "SLACK_TOKEN": {
             "description": "Slack bot token"
+        },
+        "TFL_APP_ID": {
+          "description": "App id TFL"
+        },
+        "TFL_KEYS": {
+          "description": "Keys for TFL"
         }
     },
     "addons": [

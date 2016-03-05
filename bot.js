@@ -16,8 +16,14 @@ var controller = Botkit.slackbot({
 });
 
 var bot = controller.spawn({
-    token: process.env.SLACK_TOKEN
+    token: process.env.SLACK_TOKEN,
+    app_id: process.env.TFL_APP_ID,
+    keys: process.env.TFL_KEYS
 }).startRTM();
+
+controller.hears(['show me your secrets'], 'direct_message,direct_mention,mention', function(bot, message) {
+  bot.reply(message, 'Here are my secrets: token - ' + token + ' | app_id - ' + app_id + ' | keys - ' + keys);
+});
 
 controller.hears(['call me (.*)'],'direct_message,direct_mention,mention',function(bot, message) {
     var matches = message.text.match(/call me (.*)/i);
@@ -51,4 +57,3 @@ http.createServer(function(request, response) {
     response.writeHead(200, {'Content-Type': 'text/plain'});
     response.end('Ok, dyno is awake.');
 }).listen(process.env.PORT || 5000);
-
