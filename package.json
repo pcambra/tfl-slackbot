@@ -18,6 +18,6 @@
         "type": "git",
         "url": "https://github.com/horimislime/botkit-heroku-redis-example.git"
     },
-    "author": "horimislime@gmail.com",
+    "author": "pedro.cambra@gmail.com",
     "license": "MIT"
 }

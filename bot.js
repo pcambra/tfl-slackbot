@@ -5,7 +5,7 @@ var url = require('url');
 
 var redisURL = url.parse(process.env.REDISCLOUD_URL);
 var redisStorage = redis({
-    namespace: 'botkit-example',
+    namespace: 'tfl-slackbot',
     host: redisURL.hostname,
     port: redisURL.port,
     auth_pass: redisURL.auth.split(":")[1]
@@ -13,16 +13,18 @@ var redisStorage = redis({
 
 var controller = Botkit.slackbot({
     storage: redisStorage
+    debug: true,
 });
 
 var bot = controller.spawn({
-    token: process.env.SLACK_TOKEN,
-    app_id: process.env.TFL_APP_ID,
-    keys: process.env.TFL_KEYS
+    token: process.env.SLACK_TOKEN
 }).startRTM();
 
-controller.hears(['show me your secrets'], 'direct_message,direct_mention,mention', function(bot, message) {
-  bot.reply(message, 'Here are my secrets: token - ' + token + ' | app_id - ' + app_id + ' | keys - ' + keys);
+var app_id = process.env.TFL_APP_ID;
+var keys = process.env.TFL_KEYS;
+
+controller.hears(['show me your secrets'],'direct_message,direct_mention,mention', function(bot, message) {
+  bot.reply(message, 'Here are my secrets: app_id - ' + app_id + ' | keys - ' + keys);
 });
 
 controller.hears(['call me (.*)'],'direct_message,direct_mention,mention',function(bot, message) {
