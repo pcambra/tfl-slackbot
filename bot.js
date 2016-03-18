@@ -6,7 +6,8 @@ var http = require('http');
 var https = require('https');
 var url = require('url');
 var async = require('async');
-
+var UKPostcodes = require('uk-postcodes-node');
+var _ = require('underscore');
 
 var redisURL = url.parse(process.env.REDISCLOUD_URL);
 var redisStorage = redis({
@@ -16,14 +17,14 @@ var redisStorage = redis({
     auth_pass: redisURL.auth.split(":")[1]
 });
 
-/* Development
-var redisStorage = redis({
+// Development
+/*var redisStorage = redis({
     namespace: 'tfl-slackbot'
 });*/
 
 var controller = Botkit.slackbot({
     storage: redisStorage,
-    debug: true
+    debug: false
 });
 
 var bot = controller.spawn({
@@ -37,63 +38,14 @@ controller.hears(['show me your secrets'],'direct_message,direct_mention,mention
   bot.reply(message, 'Here are my secrets: app_id - ' + appId + ' | app_key - ' + appKey);
 });
 
-controller.hears(['watch add'],'direct_message,direct_mention,mention',function(bot, message) {
-  bot.startConversation(message,function(err, convo) {
-      convo.ask('Enter the id of the stop to watch, see https://api.tfl.gov.uk/Line/{Line}/StopPoints?app_id=' + appId + '&app_key=' + appKey,
-        function(response, convo) {
-          controller.storage.teams.get('watched_stops', function(err, data){
-            if (err) {
-              console.log(err);
-            }
-            else {
-              if (data) {
-                var watchedStops = data.value;
-              }
-              else {
-                var watchedStops = [];
-              }
-              watchedStops.push(response.text);
-              controller.storage.teams.save({id: 'watched_stops', value: watchedStops}, function(err) {
-                if (err)
-                  console.log(err)
-                else
-                  convo.say("Stop " + response.text + " added to the watch list.")
-              });
-            }
-          });
-          convo.next();
-        });
-  });
-});
-
-controller.hears(['watch list'],'direct_message,direct_mention,mention',function(bot, message) {
-  var list_stops = controller.storage.teams.get('watched_stops', function(err, data){
-    if (err) {
-      console.log(err)
-    }
-    else {
-      if (data) {
-        bot.reply(message, 'These are the stops watched: ' + data.value.join(', '));
-      }
-      else {
-        bot.reply(message, 'No watched stops');
-      }
-    }
-  });
-});
-
-controller.hears(['watch delete'],'direct_message,direct_mention,mention',function(bot, message) {
-});
-
-controller.hears(['watch next'],'direct_message,direct_mention,mention',function(bot, message) {
-  controller.storage.teams.get('watched_stops', function(err, data){
-    if (err) {
-      console.log(err);
-    }
-    else {
-      if (data) {
-        async.each(data.value, function(stopId, callback){
-          var url = 'https://api.tfl.gov.uk/StopPoint/' + stopId + '/Arrivals?app_id=' + appId + '&app_key=' + appKey;
+controller.hears(['stops near'], 'direct_message,direct_mention,mention', function(bot, message) {
+  bot.startConversation(message, function(err, convo) {
+    convo.ask('Enter your postcode to display the nearest stops to you', function(response, convo) {
+      UKPostcodes.getPostcode(response.text, function (err, data) {
+        if (err)
+          return console.log(err)
+        if (data) {
+          var url = 'https://api.tfl.gov.uk/Place?lat=' + data.geo.lat + '&lon=' + data.geo.lng + '&radius=500&includeChildren=False&app_id=' + appId + '&app_key=' + appKey;
           https.get(url, function(res) {
             var body = '';
 
@@ -103,20 +55,144 @@ controller.hears(['watch next'],'direct_message,direct_mention,mention',function
 
             res.on('end', function() {
               var tflResponse = JSON.parse(body);
-              async.each(tflResponse, function(nextBus, callback) {
-                var minutes = Math.floor(nextBus.timeToStation / 60);
-                var seconds = nextBus.timeToStation - minutes * 60;
-                bot.reply(message, 'Bus ' + nextBus.lineName + ' towards ' + nextBus.towards + ' will arrive in ' + minutes + 'm' + seconds + 's');
-                callback();
+              var busStops = [];
+              async.each(tflResponse.places, function(place, callback) {
+                if (place.placeType == 'StopPoint' && place.stopType == 'NaptanPublicBusCoachTram' && place.status == true) {
+                  busStops.push({"id": place.id, "name": place.commonName, "letter": place.stopLetter, "distance": place.distance});
+                }
+                callback(null);
+              }, function (err) {
+                if (err)
+                  return console.log(err)
+
+                _.sortBy(busStops, 'distance');
+                convo.say("The nearest bus stops are: ");
+                var busStopList = [];
+                busStops.slice(0, 9).forEach(function(busStop) {
+                  busStopList.push('Id: ' + busStop.id + ', Name: ' + busStop.name + ' , Letter: ' + busStop.letter + ' , Distance: ' + Math.round(busStop.distance) + 'm');
+                });
+                convo.say(busStopList.join('\n'));
+                convo.next();
               });
+            });
+          });
+        }
+      });
+    });
+  });
+});
+
+controller.hears(['stops add (.*) (.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
+  var label = message.match[1];
+  var stopId = message.match[2];
+  controller.storage.teams.get('watched_stops_' + label, function(err, data){
+    if (err)
+      return console.log(err)
+
+    if (data) {
+      var watchedStops = data.value;
+    }
+    else {
+      var watchedStops = [];
+    }
+    watchedStops.push(stopId);
+    controller.storage.teams.save({id: 'watched_stops_' + label, value: watchedStops}, function(err) {
+      if (err)
+        return console.log(err)
+
+      bot.reply(message, "Stop id " + stopId + " has been saved for label " + label);
+    });
+  });
+});
+
+controller.hears(['stops list (.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
+  var label = message.match[1];
+  var listStops = controller.storage.teams.get('watched_stops_' + label, function(err, data){
+    if (err)
+      console.log(err)
+
+    if (data) {
+      bot.reply(message, 'These are the stops watched for label ' + label + ':' + data.value.join(', '));
+    }
+    else {
+      bot.reply(message, 'No watched stops');
+    }
+  });
+});
+
+controller.hears(['stops delete (.*) (.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
+  var label = message.match[1];
+  var stopId = message.match[2];
+  controller.storage.teams.get('watched_stops_' + label, function(err, data){
+    if (err)
+      return console.log(err)
+
+    if (data) {
+      var watchedStops = _.clone(data.value);
+      watchedStops.splice(watchedStops.indexOf(stopId), 1);
+      controller.storage.teams.save({id: 'watched_stops_' + label, value: watchedStops}, function(err) {
+        if (err)
+          return console.log(err)
+
+        bot.reply(message, "Stop id " + stopId + " has been removed from label " + label);
+      });
+    }
+  });
+
+});
+
+controller.hears(['next (.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
+  var label = message.match[1];
+  controller.storage.teams.get('watched_stops_' + label, function(err, data){
+    if (err)
+      return console.log(err)
+
+    if (data) {
+      async.each(data.value, function(stopId, callback) {
+          var url = 'https://api.tfl.gov.uk/StopPoint/' + stopId + '/Arrivals?app_id=' + appId + '&app_key=' + appKey;
+          https.get(url, function(res) {
+            var body = '';
+
+            res.on('data', function(chunk) {
+              body += chunk;
+            });
+
+            res.on('end', function() {
+              var nextBusInfo = [];
+              var tflResponse = _.sortBy(JSON.parse(body), 'timeToStation').slice(0,4);
+              async.each(tflResponse, function(nextBus, callback) {
+                var minutes = Math.floor(nextBus.timeToStation / 60)
+                var BusInfo = {
+                  "stopId": stopId,
+                  "line": nextBus.lineName,
+                  "minutes": minutes,
+                  "seconds": nextBus.timeToStation - minutes * 60,
+                  "towards": nextBus.towards,
+                };
+                nextBusInfo.push(BusInfo);
+                callback();
+              }, function(err) {
+                  if (err)
+                    return console.log(err);
+
+                  if (nextBusInfo) {
+                    var nextBusInfoDetailsMessage = [];
+                    nextBusInfoDetailsMessage.push("Next arrivals in stop " + stopId);
+                    nextBusInfo.forEach(function(nextBusInfoDetails) {
+                      nextBusInfoDetailsMessage.push('Bus ' + nextBusInfoDetails.line + ' towards ' + nextBusInfoDetails.towards + ' will arrive in ' + nextBusInfoDetails.minutes + 'm' + nextBusInfoDetails.seconds + 's');
+                    });
+                    bot.reply(message, nextBusInfoDetailsMessage.join('\n'));
+                  }
+                  else {
+                    bot.reply(message, "No arrivals for stop");
+                  }
+                }
+              );
             });
           });
 
           callback();
-        });
-
-        http.get
-      }
+      });
     }
   });
 });
