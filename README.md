@@ -1,17 +1,33 @@
-# botkit-heroku-redis-example
-This repo demonstrates how to deploy [botkit](https://github.com/howdyai/botkit) on Heroku, and RedisCloud as its storage.
+## Slack bot TFL (bus)
 
-## How to Use
+Slack bot that integrates with TFL API.
 
-- Create your own bot by following [here](https://slack.com/apps/A0F7XDU93-hubot).
-- Copy the API Token from integration settings page of the bot you create.
-- Then just click below:
+## Integration
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
+Add TFL_APP_ID and TFL_KEYS as environment variables.
 
-## Demo
-This bot can perform simple conversation(implementation refer to the [botkit's sample](https://github.com/howdyai/botkit/blob/master/bot.js)),  
-user's mention will be stored on RedisCloud.
+## Commands
 
-<img width="310" alt="demo" src="https://cloud.githubusercontent.com/assets/264370/12226787/c34bded6-b864-11e5-8123-43141b85cd78.png">
+> stops near
 
+Opens a conversation requesting the postcode to display the 10 bus stations
+closer to the postcode location.
+
+> stops add <label> <stop id>
+
+Adds a stop by id (see "stops near") to a labeled list.
+i.e. "stops add home 490003174S"
+
+> next <label>
+
+Shows the next 5 bus arrivals in the stops listed for that label.
+i.e. "next home"
+
+> stops list <label>
+
+Displays the stops listed under the label.
+
+> stops delete <label> <stop id>
+
+Removes the stop id from the label.
+i.e. "stops delete home 490003174S"
