@@ -1,7 +1,7 @@
 {
-  "name": "botkit-heroku-redis-example",
-  "version": "0.0.1",
-  "description": "Demonstrates how to use botkit with Redis storage on Heroku.",
+  "name": "tfl-slackbot",
+  "version": "1.0",
+  "description": "TFL Slack bot.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/horimislime/botkit-heroku-redis-example.git"
+    "url": "https://github.com/pcambra/tfl-slackbot.git"
   },
   "author": "pedro.cambra@gmail.com",
   "license": "MIT"
