@@ -1,12 +1,12 @@
 "use strict";
 
-var async = require('async');
-var https = require('https');
-var _ = require('underscore');
+var async = require('async'),
+  https = require('https'),
+  _ = require('underscore');
 
-var appId = process.env.TFL_APP_ID;
-var appKey = process.env.TFL_KEYS;
-var baseUrl = 'api.tfl.gov.uk';
+var appId = process.env.TFL_APP_ID,
+  appKey = process.env.TFL_KEYS,
+  baseUrl = 'api.tfl.gov.uk';
 
 function places(lat, lon, radius, doneCallback) {
   var options = {
@@ -17,7 +17,6 @@ function places(lat, lon, radius, doneCallback) {
 
   https.get(options, function(res) {
     var body = '';
-
     res.on('data', function(chunk) {
       body += chunk;
     });
@@ -49,7 +48,6 @@ function nextInStop(stopId, doneCallback) {
 
   https.get(options, function(res) {
     var body = '';
-
     res.on('data', function(chunk) {
       body += chunk;
     });
@@ -86,7 +84,6 @@ function stopInfo(stopId, doneCallback) {
 
   https.get(options, function(res) {
     var body = '';
-
     res.on('data', function(chunk) {
       body += chunk;
     });

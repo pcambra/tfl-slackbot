@@ -1,13 +1,13 @@
 "use strict";
 
-var Botkit = require('botkit');
-var redis = require('botkit/lib/storage/redis_storage');
-var http = require('http');
-var url = require('url');
-var async = require('async');
-var UKPostcodes = require('uk-postcodes-node');
-var _ = require('underscore');
-var tfl = require('./libs/tfl')
+var Botkit = require('botkit'),
+  redis = require('botkit/lib/storage/redis_storage'),
+  http = require('http'),
+  url = require('url'),
+  async = require('async'),
+  UKPostcodes = require('uk-postcodes-node'),
+  _ = require('underscore'),
+  tfl = require('./libs/tfl');
 
 // Redis connection.
 if (process.env.REDISCLOUD_URL) {
@@ -35,6 +35,14 @@ var controller = Botkit.slackbot({
 var bot = controller.spawn({
     token: process.env.SLACK_TOKEN
 }).startRTM();
+
+function stopLabel(stopInfo) {
+  var stopLabel = ["stop '" + stopInfo.name + "' "];
+  if (stopInfo.letter)
+    stopLabel.push("(" + stopInfo.letter + ") ");
+  stopLabel.push("stop code: " + stopInfo.stopId + ".");
+  return stopLabel.join(" ");
+}
 
 controller.hears(['stops near'], 'direct_message,direct_mention,mention', function(bot, message) {
   bot.startConversation(message, function(err, convo) {
@@ -93,12 +101,7 @@ controller.hears(['stops list (.*)'], 'direct_message,direct_mention,mention', f
       var watchedStops = _.clone(data.value);
       var listMessage = ['These are the stops watched for label ' + label];
       watchedStops.forEach(function(watchedStop) {
-        console.log(watchedStop);
-        var listMessageText = "Bus stop '" + watchedStop.name + "' ";
-        if (watchedStop.letter)
-          listMessageText += "(" + watchedStop.letter + ") ";
-        listMessageText += "stop code: " + watchedStop.stopId + ".";
-        listMessage.push(listMessageText);
+        listMessage.push("Bus " + stopLabel(watchedStop));
       });
       bot.reply(message, listMessage.join('\n'));
     }
@@ -132,20 +135,22 @@ controller.hears(['next (.*)'], 'direct_message,direct_mention,mention', functio
     if (err) throw (err);
 
     if (data) {
-      async.each(data.value, function(stopId, callback) {
-        tfl.nextInStop(stopId, function(nextBusInfo) {
-          if (nextBusInfo) {
-            var nextBusInfoDetailsMessage = ["Next arrivals in stop " + stopId];
+      var watchedStops = _.clone(data.value);
+      async.each(watchedStops, function(stopInfo, callback) {
+        tfl.nextInStop(stopInfo.stopId, function(nextBusInfo) {
+          if (nextBusInfo.length) {
+            var nextBusInfoDetailsMessage = ["Next arrivals in " +
+              stopLabel(stopInfo)];
             nextBusInfo.forEach(function(nextBusInfoDetails) {
-              nextBusInfoDetailsMessage.push('Bus ' + nextBusInfoDetails.line
-                + ' towards ' + nextBusInfoDetails.towards + ' will arrive in '
-                + nextBusInfoDetails.minutes + 'm' + nextBusInfoDetails.seconds
-                + 's');
+              nextBusInfoDetailsMessage.push("Bus " + nextBusInfoDetails.line
+                + " towards " + nextBusInfoDetails.towards + " will arrive in "
+                + nextBusInfoDetails.minutes + "m" + nextBusInfoDetails.seconds
+                + "s");
             });
             bot.reply(message, nextBusInfoDetailsMessage.join('\n'));
           }
           else {
-            bot.reply(message, "No arrivals for this stop");
+            bot.reply(message, "No arrivals for " + stopLabel(stopInfo));
           }
         });
         callback();
